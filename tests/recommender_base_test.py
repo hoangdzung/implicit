@@ -38,6 +38,7 @@ class RecommenderBaseTestMixin(object):
 
         for userid in range(50):
             ids, scores = model.recommend(userid, user_items, N=1)
+            print(userid, ids, scores)
             self.assertEqual(len(ids), 1)
 
             # the top item recommended should be the same as the userid:
@@ -108,12 +109,46 @@ class RecommenderBaseTestMixin(object):
             for r in ids:
                 self.assertEqual(r % 2, userid % 2)
 
+    def test_similar_users_batch(self):
+        model = self._get_model()
+        model.fit(get_checker_board(256), show_progress=False)
+        userids = np.arange(50)
+        ids, scores = model.similar_users(userids, N=10)
+
+        self.assertEqual(ids.shape, (50, 10))
+
+        for userid in userids:
+            # first user returned should be itself, and score should be ~1.0
+            self.assertEqual(ids[userid][0], userid)
+            self.assertAlmostEqual(scores[userid][0], 1.0, places=4)
+
+            # the rest of the users should be even or odd depending on the userid
+            for r in ids[userid]:
+                self.assertEqual(r % 2, userid % 2)
+
     def test_similar_items(self):
         model = self._get_model()
         model.fit(get_checker_board(256), show_progress=False)
         for itemid in range(50):
             ids, _ = model.similar_items(itemid, N=10)
             for r in ids:
+                self.assertEqual(r % 2, itemid % 2)
+
+    def test_similar_items_batch(self):
+        model = self._get_model()
+        model.fit(get_checker_board(256), show_progress=False)
+        itemids = np.arange(50)
+        ids, scores = model.similar_items(itemids, N=10)
+
+        self.assertEqual(ids.shape, (50, 10))
+
+        for itemid in itemids:
+            # first item returned should be itself, and score should be ~1.0
+            self.assertEqual(ids[itemid][0], itemid)
+            self.assertAlmostEqual(scores[itemid][0], 1.0, places=4)
+
+            # the rest of the items should be even or odd depending on the itemid
+            for r in ids[itemid]:
                 self.assertEqual(r % 2, itemid % 2)
 
     def test_zero_length_row(self):

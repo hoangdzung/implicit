@@ -14,7 +14,7 @@ from .recommender_base_test import RecommenderBaseTestMixin, get_checker_board
 
 class ALSTest(unittest.TestCase, RecommenderBaseTestMixin):
     def _get_model(self):
-        return AlternatingLeastSquares(factors=3, regularization=0, use_gpu=False, random_state=23)
+        return AlternatingLeastSquares(factors=32, regularization=0, use_gpu=False, random_state=23)
 
 
 if HAS_CUDA:
@@ -152,7 +152,7 @@ def test_explain():
             [0, 1, 0, 0, 0, 1],
             [0, 0, 2, 0, 1, 1],
         ],
-        dtype=np.float64,
+        dtype=np.float32,
     )
     item_users = counts * 2
     user_items = item_users.T.tocsr()
@@ -231,12 +231,6 @@ def test_recommend_all():
     for userid in range(2, 5):
         assert len(recs[userid - offset]) == 1
         assert recs[userid - offset][0] == userid
-
-    # try asking for more items than possible
-    with pytest.raises(ValueError):
-        model.recommend_all(user_items, N=10000, show_progress=False)
-    with pytest.raises(ValueError):
-        model.recommend_all(user_items, filter_items=list(range(10000)), show_progress=False)
 
     # filter recommended items using an additional filter list
     recs = model.recommend_all(user_items, N=1, filter_items=[0], show_progress=False)
