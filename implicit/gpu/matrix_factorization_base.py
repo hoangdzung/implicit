@@ -47,15 +47,16 @@ class MatrixFactorizationBase(RecommenderBase):
         count = N + len(liked)
 
         # calculate the top N items, removing the users own liked items from the results
-        # TODO: own like filtering (direct in topk class)
         ids, scores = self._knn.topk(self.item_factors, self.user_factors[userid], count)
 
-        # TODO: handle batch mode
-        ids, scores = ids[0], scores[0]
-
-        if liked:
-            mask = np.in1d(ids, list(liked), invert=True)
-            ids, scores = ids[mask][:N], scores[mask][:N]
+        if np.isscalar(userid):
+            ids, scores = ids[0], scores[0]
+            if liked:
+                mask = np.in1d(ids, list(liked), invert=True)
+                ids, scores = ids[mask][:N], scores[mask][:N]
+        elif liked:
+            # TODO: own like filtering (direct in topk class)
+            raise NotImplementedError("Can't do users own like filtering in batch mode yet")
         return ids, scores
 
     recommend.__doc__ = RecommenderBase.recommend.__doc__
@@ -97,12 +98,13 @@ class MatrixFactorizationBase(RecommenderBase):
         ids, scores = self._knn.topk(
             self.user_factors, self.user_factors[userid], N, self.user_norms
         )
-        ids, scores = ids[0], scores[0]
 
         user_norms = self._user_norms_host[userid]
-        if not np.isscalar(user_norms):
-            user_norms = user_norms.reshape((len(user_norms), 1))
-        scores /= user_norms
+        if np.isscalar(userid):
+            ids, scores = ids[0], scores[0]
+            scores /= user_norms
+        else:
+            scores /= user_norms[:, None]
         return ids, scores
 
     similar_users.__doc__ = RecommenderBase.similar_users.__doc__
@@ -113,12 +115,13 @@ class MatrixFactorizationBase(RecommenderBase):
         ids, scores = self._knn.topk(
             self.item_factors, self.item_factors[itemid], N, self.item_norms
         )
-        ids, scores = ids[0], scores[0]
 
         item_norms = self._item_norms_host[itemid]
-        if not np.isscalar(item_norms):
-            item_norms = item_norms.reshape((len(item_norms), 1))
-        scores /= item_norms
+        if np.isscalar(itemid):
+            ids, scores = ids[0], scores[0]
+            scores /= item_norms
+        else:
+            scores /= item_norms[:, None]
         return ids, scores
 
     similar_items.__doc__ = RecommenderBase.similar_items.__doc__
