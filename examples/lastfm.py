@@ -52,7 +52,7 @@ def get_model(model_name):
 
     # some default params
     if model_name.endswith("als"):
-        params = {"factors": 64, "dtype": np.float32}
+        params = {"factors": 64, "dtype": np.float32, "use_gpu": True}
     elif model_name == "bm25":
         params = {"K1": 100, "B": 0.5}
     elif model_name == "bpr":
@@ -103,11 +103,15 @@ def calculate_similar_artists(output_filename, model_name="als"):
     logging.debug("writing similar items")
     with tqdm.tqdm(total=len(to_generate)) as progress:
         with codecs.open(output_filename, "w", "utf8") as o:
-            for artistid in to_generate:
-                artist = artists[artistid]
-                for other, score in zip(*model.similar_items(artistid, 11)):
-                    o.write("%s\t%s\t%s\n" % (artist, artists[other], score))
-                progress.update(1)
+            batch_size = 1000
+            for startidx in range(0, len(to_generate), batch_size):
+                batch = to_generate[startidx : startidx + batch_size]
+                ids, scores = model.similar_items(batch, 11)
+                for i, artistid in enumerate(batch):
+                    artist = artists[artistid]
+                    for other, score in zip(ids[i], scores[i]):
+                        o.write("%s\t%s\t%s\n" % (artist, artists[other], score))
+                progress.update(batch_size)
 
     logging.debug("generated similar artists in %0.2fs", time.time() - start)
 
