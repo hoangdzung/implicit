@@ -13,6 +13,7 @@ import time
 
 import numpy as np
 import tqdm
+import os 
 
 from implicit.als import AlternatingLeastSquares
 from implicit.approximate_als import (
@@ -43,6 +44,36 @@ MODELS = {
     "bm25": BM25Recommender,
 }
 
+def get_techland(path='./techland.json'):
+    assert os.path.isfile(path), "File not exist"
+    from scipy.sparse import csr_matrix
+    import json 
+
+    data = json.load(open(path))
+    company_to_id = {company: idx for idx, company in enumerate(data)}
+    term_to_id = {}
+    com_idxs = []
+    term_idxs = []
+    rates = []
+    for com, term_to_score in tqdm.tqdm(data.items()):
+        com_idx = company_to_id[com]
+        for term, score in term_to_score.items():
+            com_idxs.append(com_idx)
+            try:
+                term_idx = term_to_id[term]
+            except KeyError as e:
+                term_idx = len(term_to_id)
+                term_to_id[term] = term_idx
+            term_idxs.append(term_idx)
+            rates.append(score)
+
+    id_to_company = {idx: company for company, idx in company_to_id.items()}
+    id_to_term = {idx: term for term, idx in term_to_id.items()}
+    companies = np.array([str.encode(id_to_company[i]) for i in range(len(id_to_company))])
+    terms = np.array([str.encode(id_to_term[i]) for i in range(len(id_to_term))])
+    ratings = csr_matrix((rates, (com_idxs, term_idxs)), shape=(len(companies), len(terms)))
+
+    return companies, terms, ratings
 
 def get_model(model_name):
     print("getting model %s" % model_name)
@@ -65,11 +96,15 @@ def get_model(model_name):
     return model_class(**params)
 
 
-def calculate_similar_artists(output_filename, model_name="als"):
+def calculate_similar_artists(output_filename, model_name="als", data='lastfm'):
     """generates a list of similar artists in lastfm by utilizing the 'similar_items'
     api of the models"""
-    artists, users, plays = get_lastfm()
-
+    if data == 'lastfm':
+        artists, users, plays = get_lastfm()
+    elif data == 'techland':
+        artists, users, plays = get_techland()
+    else:
+        raise NotImplementedError
     # create a model from the input data
     model = get_model(model_name)
 
@@ -111,11 +146,15 @@ def calculate_similar_artists(output_filename, model_name="als"):
     logging.debug("generated similar artists in %0.2fs", time.time() - start)
 
 
-def calculate_recommendations(output_filename, model_name="als"):
+def calculate_recommendations(output_filename, model_name="als", data='lastfm'):
     """Generates artist recommendations for each user in the dataset"""
     # train the model based off input params
-    artists, users, plays = get_lastfm()
-
+    if data == 'lastfm':
+        artists, users, plays = get_lastfm()
+    elif data == 'techland':
+        artists, users, plays = get_techland()
+    else:
+        raise NotImplementedError
     # create a model from the input data
     model = get_model(model_name)
 
@@ -170,6 +209,13 @@ if __name__ == "__main__":
         help="model to calculate (%s)" % "/".join(MODELS.keys()),
     )
     parser.add_argument(
+        "--data",
+        type=str,
+        default="lastfm",
+        dest="data",
+        help="data to calculate lastfm or techland",
+    )
+    parser.add_argument(
         "--recommend",
         help="Recommend items for each user rather than calculate similar_items",
         action="store_true",
@@ -183,6 +229,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     if args.recommend:
-        calculate_recommendations(args.outputfile, model_name=args.model)
+        calculate_recommendations(args.outputfile, model_name=args.model, data = args.data)
     else:
-        calculate_similar_artists(args.outputfile, model_name=args.model)
+        calculate_similar_artists(args.outputfile, model_name=args.model, data = args.data)
