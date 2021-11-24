@@ -44,8 +44,7 @@ MODELS = {
     "bm25": BM25Recommender,
 }
 
-def get_techland(path='./data/techland.json'):
-    assert os.path.isfile(path), "File not exist"
+def get_custom(path='./data/techland.json'):
     from scipy.sparse import csr_matrix
     import json 
 
@@ -101,8 +100,8 @@ def calculate_similar_artists(output_filename, model_name="als", data='lastfm', 
     api of the models"""
     if data == 'lastfm':
         artists, users, plays = get_lastfm()
-    elif data == 'techland':
-        artists, users, plays = get_techland()
+    elif os.path.isfile(data):
+        artists, users, plays = get_custom(data)
     else:
         raise NotImplementedError
     # create a model from the input data
@@ -152,8 +151,8 @@ def calculate_recommendations(output_filename, model_name="als", data='lastfm', 
     # train the model based off input params
     if data == 'lastfm':
         artists, users, ori_plays = get_lastfm()
-    elif data == 'techland':
-        artists, users, ori_plays = get_techland()
+    elif os.path.isfile(data):
+        artists, users, ori_plays = get_custom(data)
     else:
         raise NotImplementedError
     # create a model from the input data
@@ -248,7 +247,7 @@ if __name__ == "__main__":
         type=str,
         default="lastfm",
         dest="data",
-        help="data to calculate lastfm or techland",
+        help="data to calculate lastfm or path-to-file",
     )
     parser.add_argument(
         "--recommend",
