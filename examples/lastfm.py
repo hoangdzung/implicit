@@ -44,7 +44,7 @@ MODELS = {
     "bm25": BM25Recommender,
 }
 
-def get_techland(path='./techland.json'):
+def get_techland(path='./data/techland.json'):
     assert os.path.isfile(path), "File not exist"
     from scipy.sparse import csr_matrix
     import json 
@@ -148,11 +148,12 @@ def calculate_similar_artists(output_filename, model_name="als", data='lastfm'):
 
 def calculate_recommendations(output_filename, model_name="als", data='lastfm'):
     """Generates artist recommendations for each user in the dataset"""
+    output_filename, ext = os.path.splitext(output_filename)
     # train the model based off input params
     if data == 'lastfm':
-        artists, users, plays = get_lastfm()
+        artists, users, ori_plays = get_lastfm()
     elif data == 'techland':
-        artists, users, plays = get_techland()
+        artists, users, ori_plays = get_techland()
     else:
         raise NotImplementedError
     # create a model from the input data
@@ -163,7 +164,7 @@ def calculate_recommendations(output_filename, model_name="als", data='lastfm'):
     if model_name.endswith("als"):
         # lets weight these models by bm25weight.
         logging.debug("weighting matrix by bm25_weight")
-        plays = bm25_weight(plays, K1=100, B=0.8)
+        plays = bm25_weight(ori_plays, K1=100, B=0.8)
 
         # also disable building approximate recommend index
         model.approximate_similar_items = False
@@ -180,13 +181,42 @@ def calculate_recommendations(output_filename, model_name="als", data='lastfm'):
     start = time.time()
     user_plays = plays.T.tocsr()
     with tqdm.tqdm(total=len(users)) as progress:
-        with codecs.open(output_filename, "w", "utf8") as o:
+        with codecs.open(output_filename+'_techcom'+ext, "w", "utf8") as o:
             for userid, username in enumerate(users):
                 for artistid, score in model.recommend(userid, user_plays):
                     o.write("%s\t%s\t%s\n" % (username, artists[artistid], score))
                 progress.update(1)
     logging.debug("generated recommendations in %0.2fs", time.time() - start)
 
+    model = get_model(model_name)
+
+    # if we're training an ALS based model, weight input for last.fm
+    # by bm25
+    if model_name.endswith("als"):
+        # lets weight these models by bm25weight.
+        logging.debug("weighting matrix by bm25_weight")
+        plays = bm25_weight(ori_plays.T, K1=100, B=0.8)
+
+        # also disable building approximate recommend index
+        model.approximate_similar_items = False
+
+    # this is actually disturbingly expensive:
+    plays = plays.tocsr()
+
+    logging.debug("training model %s", model_name)
+    start = time.time()
+    model.fit(plays)
+    logging.debug("trained model '%s' in %0.2fs", model_name, time.time() - start)
+
+    start = time.time()
+    artist_plays = plays.T.tocsr()
+    with tqdm.tqdm(total=len(artists)) as progress:
+        with codecs.open(output_filename+'_comtech'+ext, "w", "utf8") as o:
+            for artistid, artistname in enumerate(artists):
+                for userid, score in model.recommend(artistid, artist_plays):
+                    o.write("%s\t%s\t%s\n" % (artistname, users[userid], score))
+                progress.update(1)
+    logging.debug("generated recommendations in %0.2fs", time.time() - start)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
