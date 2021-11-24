@@ -75,7 +75,7 @@ def get_techland(path='./data/techland.json'):
 
     return companies, terms, ratings
 
-def get_model(model_name):
+def get_model(model_name, use_gpu=False):
     print("getting model %s" % model_name)
     model_class = MODELS.get(model_name)
     if not model_class:
@@ -83,7 +83,7 @@ def get_model(model_name):
 
     # some default params
     if model_name.endswith("als"):
-        params = {"factors": 64, "dtype": np.float32}
+        params = {"factors": 64, "dtype": np.float32, 'use_gpu':use_gpu}
     elif model_name == "bm25":
         params = {"K1": 100, "B": 0.5}
     elif model_name == "bpr":
@@ -96,7 +96,7 @@ def get_model(model_name):
     return model_class(**params)
 
 
-def calculate_similar_artists(output_filename, model_name="als", data='lastfm'):
+def calculate_similar_artists(output_filename, model_name="als", data='lastfm', use_gpu=False):
     """generates a list of similar artists in lastfm by utilizing the 'similar_items'
     api of the models"""
     if data == 'lastfm':
@@ -106,7 +106,7 @@ def calculate_similar_artists(output_filename, model_name="als", data='lastfm'):
     else:
         raise NotImplementedError
     # create a model from the input data
-    model = get_model(model_name)
+    model = get_model(model_name, use_gpu)
 
     # if we're training an ALS based model, weight input for last.fm
     # by bm25
@@ -146,7 +146,7 @@ def calculate_similar_artists(output_filename, model_name="als", data='lastfm'):
     logging.debug("generated similar artists in %0.2fs", time.time() - start)
 
 
-def calculate_recommendations(output_filename, model_name="als", data='lastfm'):
+def calculate_recommendations(output_filename, model_name="als", data='lastfm', use_gpu=False):
     """Generates artist recommendations for each user in the dataset"""
     output_filename, ext = os.path.splitext(output_filename)
     # train the model based off input params
@@ -157,7 +157,7 @@ def calculate_recommendations(output_filename, model_name="als", data='lastfm'):
     else:
         raise NotImplementedError
     # create a model from the input data
-    model = get_model(model_name)
+    model = get_model(model_name,use_gpu)
 
     # if we're training an ALS based model, weight input for last.fm
     # by bm25
@@ -239,6 +239,11 @@ if __name__ == "__main__":
         help="model to calculate (%s)" % "/".join(MODELS.keys()),
     )
     parser.add_argument(
+        "--use_gpu",
+        help="Use gpu or not",
+        action="store_true",
+    )
+    parser.add_argument(
         "--data",
         type=str,
         default="lastfm",
@@ -259,6 +264,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     if args.recommend:
-        calculate_recommendations(args.outputfile, model_name=args.model, data = args.data)
+        calculate_recommendations(args.outputfile, model_name=args.model, data = args.data, use_gpu=args.use_gpu)
     else:
-        calculate_similar_artists(args.outputfile, model_name=args.model, data = args.data)
+        calculate_similar_artists(args.outputfile, model_name=args.model, data = args.data, use_gpu=args.use_gpu)
